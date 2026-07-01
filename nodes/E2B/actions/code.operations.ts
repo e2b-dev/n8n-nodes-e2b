@@ -1,21 +1,20 @@
-import type { CommandResult as E2BCommandResult } from 'e2b';
 import type { IDataObject } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 
+import { connectSandbox, createSandbox, killSandbox, runSandboxCommand } from '../client';
 import {
 	asNonEmptyString,
-	buildApiOpts,
-	buildConnectOpts,
-	getCreateOpts,
 	getErrorMessage,
 	getRequiredStringParameter,
+	getSandboxCreateOptions,
 	parseStringMapParameter,
 	toCommandResultData,
 } from '../helpers';
 import type { E2BOperationContext } from '../types';
 
 export async function runCommand(context: E2BOperationContext) {
-	const { executeFunctions, credentials, itemIndex, sdk, timeoutMs } = context;
+	const { executeFunctions, credentials, itemIndex, timeoutMs } = context;
+	const connection = { executeFunctions, credentials, timeoutMs };
 	const sandboxId = asNonEmptyString(executeFunctions.getNodeParameter('sandboxId', itemIndex, ''));
 	const command = getRequiredStringParameter(executeFunctions, 'command', 'Command', itemIndex);
 	const cwd = asNonEmptyString(executeFunctions.getNodeParameter('cwd', itemIndex, ''));
@@ -29,31 +28,18 @@ export async function runCommand(context: E2BOperationContext) {
 	);
 	const createdSandbox = !sandboxId;
 	const sandbox = sandboxId
-		? await sdk.Sandbox.connect(sandboxId, buildConnectOpts(credentials, timeoutMs))
-		: await sdk.Sandbox.create(getCreateOpts(executeFunctions, credentials, itemIndex));
+		? await connectSandbox(connection, sandboxId)
+		: await createSandbox(connection, getSandboxCreateOptions(executeFunctions, itemIndex));
 
 	let resultData: IDataObject | undefined;
 	let executionError: unknown;
 	let cleanupError: unknown;
 	try {
 		const startedAt = Date.now();
-		let result: E2BCommandResult;
-		try {
-			result = await sandbox.commands.run(command, {
-				...(cwd ? { cwd } : {}),
-				...(envs ? { envs } : {}),
-				timeoutMs,
-				requestTimeoutMs: timeoutMs,
-			});
-		} catch (error) {
-			if (error instanceof sdk.CommandExitError) {
-				result = error;
-			} else {
-				throw new NodeOperationError(executeFunctions.getNode(), getErrorMessage(error), {
-					itemIndex,
-				});
-			}
-		}
+		const result = await runSandboxCommand(connection, sandbox, command, {
+			...(cwd ? { cwd } : {}),
+			...(envs ? { envs } : {}),
+		});
 
 		resultData = toCommandResultData(result, sandbox, command, startedAt, createdSandbox, false);
 	} catch (error) {
@@ -61,7 +47,7 @@ export async function runCommand(context: E2BOperationContext) {
 	} finally {
 		if (killAfterRun) {
 			try {
-				await sandbox.kill(buildApiOpts(credentials, timeoutMs));
+				await killSandbox(connection, sandbox.sandboxId);
 				if (resultData) resultData.killedAfterRun = true;
 			} catch (error) {
 				cleanupError = error;

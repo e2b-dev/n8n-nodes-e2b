@@ -1,6 +1,6 @@
+import { createSnapshot, deleteSnapshot as deleteSnapshotById, listSnapshots } from '../client';
 import {
 	asNonEmptyString,
-	buildApiOpts,
 	getLimit,
 	getRequiredStringParameter,
 	toSnapshotInfoData,
@@ -8,7 +8,8 @@ import {
 import type { E2BOperationContext } from '../types';
 
 export async function create(context: E2BOperationContext) {
-	const { executeFunctions, credentials, itemIndex, sdk, timeoutMs } = context;
+	const { executeFunctions, credentials, itemIndex, timeoutMs } = context;
+	const connection = { executeFunctions, credentials, timeoutMs };
 	const sandboxId = getRequiredStringParameter(
 		executeFunctions,
 		'sandboxId',
@@ -18,10 +19,7 @@ export async function create(context: E2BOperationContext) {
 	const snapshotName = asNonEmptyString(
 		executeFunctions.getNodeParameter('snapshotName', itemIndex, ''),
 	);
-	const snapshot = await sdk.Sandbox.createSnapshot(sandboxId, {
-		...buildApiOpts(credentials, timeoutMs),
-		...(snapshotName ? { name: snapshotName } : {}),
-	});
+	const snapshot = await createSnapshot(connection, sandboxId, snapshotName);
 
 	return [
 		{
@@ -32,14 +30,14 @@ export async function create(context: E2BOperationContext) {
 }
 
 export async function getMany(context: E2BOperationContext) {
-	const { executeFunctions, credentials, itemIndex, sdk, timeoutMs } = context;
+	const { executeFunctions, credentials, itemIndex, timeoutMs } = context;
+	const connection = { executeFunctions, credentials, timeoutMs };
 	const sandboxId = asNonEmptyString(executeFunctions.getNodeParameter('sandboxId', itemIndex, ''));
-	const paginator = sdk.Sandbox.listSnapshots({
-		...buildApiOpts(credentials, timeoutMs),
-		...(sandboxId ? { sandboxId } : {}),
-		limit: getLimit(executeFunctions, itemIndex),
-	});
-	const snapshots = await paginator.nextItems();
+	const snapshots = await listSnapshots(
+		connection,
+		getLimit(executeFunctions, itemIndex),
+		sandboxId,
+	);
 
 	return snapshots.map((snapshot) => ({
 		json: toSnapshotInfoData(snapshot),
@@ -48,17 +46,15 @@ export async function getMany(context: E2BOperationContext) {
 }
 
 export async function deleteSnapshot(context: E2BOperationContext) {
-	const { executeFunctions, credentials, itemIndex, sdk, timeoutMs } = context;
+	const { executeFunctions, credentials, itemIndex, timeoutMs } = context;
+	const connection = { executeFunctions, credentials, timeoutMs };
 	const snapshotId = getRequiredStringParameter(
 		executeFunctions,
 		'snapshotId',
 		'Snapshot ID',
 		itemIndex,
 	);
-	const deleted = await sdk.Sandbox.deleteSnapshot(
-		snapshotId,
-		buildApiOpts(credentials, timeoutMs),
-	);
+	const deleted = await deleteSnapshotById(connection, snapshotId);
 
 	return [
 		{

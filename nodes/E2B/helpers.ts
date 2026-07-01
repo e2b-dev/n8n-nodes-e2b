@@ -1,29 +1,19 @@
-import type {
-	CommandResult as E2BCommandResult,
-	EntryInfo as E2BEntryInfo,
-	Sandbox as E2BSandboxInstance,
-	SandboxApiOpts,
-	SandboxConnectOpts,
-	SandboxInfo as E2BSandboxInfo,
-	SandboxOpts,
-	SnapshotInfo as E2BSnapshotInfo,
-	VolumeAndToken as E2BVolumeAndToken,
-	VolumeInfo as E2BVolumeInfo,
-	WriteInfo as E2BWriteInfo,
-} from 'e2b';
-import type * as E2BSDK from 'e2b';
-import type { ICredentialDataDecryptedObject, IDataObject, IExecuteFunctions } from 'n8n-workflow';
+import type { IDataObject, IExecuteFunctions } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
+
+import type {
+	CommandResult,
+	ConnectedSandbox,
+	FileInfo,
+	SandboxCreateOptions,
+	SandboxInfo,
+	SnapshotInfo,
+	VolumeInfo,
+	WriteInfo,
+} from './client';
 
 export function asNonEmptyString(value: unknown): string | undefined {
 	return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
-}
-
-function getCredentialString(
-	credentials: ICredentialDataDecryptedObject,
-	key: string,
-): string | undefined {
-	return asNonEmptyString(credentials[key]);
 }
 
 export function getErrorMessage(error: unknown): string {
@@ -92,7 +82,7 @@ export function parseStringMapParameter(
 		}
 	}
 
-	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+	if (!isRecord(parsed)) {
 		throw new NodeOperationError(executeFunctions.getNode(), `${displayName} must be a JSON object`, {
 			itemIndex,
 		});
@@ -169,53 +159,10 @@ export function getRequiredStringParameter(
 	return value;
 }
 
-export function buildBaseConnectionOpts(
-	credentials: ICredentialDataDecryptedObject,
-	timeoutMs: number,
-): SandboxOpts {
-	const apiKey = getCredentialString(credentials, 'apiKey');
-	const apiUrl = getCredentialString(credentials, 'apiUrl');
-	const domain = getCredentialString(credentials, 'domain');
-	const sandboxUrl = getCredentialString(credentials, 'sandboxUrl');
-
-	return {
-		...(apiKey ? { apiKey } : {}),
-		...(apiUrl ? { apiUrl } : {}),
-		...(domain ? { domain } : {}),
-		...(sandboxUrl ? { sandboxUrl } : {}),
-		requestTimeoutMs: timeoutMs,
-	};
-}
-
-export function buildApiOpts(
-	credentials: ICredentialDataDecryptedObject,
-	timeoutMs: number,
-): SandboxApiOpts {
-	const apiKey = getCredentialString(credentials, 'apiKey');
-	const domain = getCredentialString(credentials, 'domain');
-
-	return {
-		...(apiKey ? { apiKey } : {}),
-		...(domain ? { domain } : {}),
-		requestTimeoutMs: timeoutMs,
-	};
-}
-
-export function buildConnectOpts(
-	credentials: ICredentialDataDecryptedObject,
-	timeoutMs: number,
-): SandboxConnectOpts {
-	return {
-		...buildBaseConnectionOpts(credentials, timeoutMs),
-		timeoutMs,
-	};
-}
-
-export function getCreateOpts(
+export function getSandboxCreateOptions(
 	executeFunctions: IExecuteFunctions,
-	credentials: ICredentialDataDecryptedObject,
 	itemIndex: number,
-): SandboxOpts {
+): SandboxCreateOptions {
 	const timeoutMs = getTimeoutMs(executeFunctions, itemIndex);
 	const template = asNonEmptyString(executeFunctions.getNodeParameter('template', itemIndex, ''));
 	const metadata = parseStringMapParameter(
@@ -240,7 +187,6 @@ export function getCreateOpts(
 		executeFunctions.getNodeParameter('allowInternetAccess', itemIndex, true) === true;
 
 	return {
-		...buildBaseConnectionOpts(credentials, timeoutMs),
 		...(template ? { template } : {}),
 		...(metadata ? { metadata } : {}),
 		...(envs ? { envs } : {}),
@@ -255,7 +201,7 @@ function toIsoString(value: Date | string | undefined): string | undefined {
 	return value;
 }
 
-export function toSandboxInfoData(info: E2BSandboxInfo, sandboxDomain?: string): IDataObject {
+export function toSandboxInfoData(info: SandboxInfo, sandboxDomain?: string): IDataObject {
 	return {
 		sandboxId: info.sandboxId,
 		templateId: info.templateId,
@@ -275,14 +221,14 @@ export function toSandboxInfoData(info: E2BSandboxInfo, sandboxDomain?: string):
 	};
 }
 
-export function toSnapshotInfoData(info: E2BSnapshotInfo): IDataObject {
+export function toSnapshotInfoData(info: SnapshotInfo): IDataObject {
 	return {
 		snapshotId: info.snapshotId,
 		names: info.names,
 	};
 }
 
-export function toFileInfoData(info: E2BEntryInfo | E2BWriteInfo): IDataObject {
+export function toFileInfoData(info: FileInfo | WriteInfo): IDataObject {
 	return {
 		name: info.name,
 		type: info.type,
@@ -302,17 +248,17 @@ export function toFileInfoData(info: E2BEntryInfo | E2BWriteInfo): IDataObject {
 	};
 }
 
-export function toVolumeInfoData(info: E2BVolumeInfo | E2BVolumeAndToken): IDataObject {
+export function toVolumeInfoData(info: VolumeInfo): IDataObject {
 	return {
 		volumeId: info.volumeId,
 		name: info.name,
-		...('token' in info ? { token: info.token } : {}),
+		...(info.token ? { token: info.token } : {}),
 	};
 }
 
 export function toCommandResultData(
-	result: E2BCommandResult,
-	sandbox: E2BSandboxInstance,
+	result: CommandResult,
+	sandbox: ConnectedSandbox,
 	command: string,
 	startedAt: number,
 	createdSandbox: boolean,
@@ -328,12 +274,13 @@ export function toCommandResultData(
 		exitCode: result.exitCode,
 		stdout: result.stdout,
 		stderr: result.stderr,
+		error: result.error,
 		executionTimeMs: Date.now() - startedAt,
 	};
 }
 
 export function toOperationCommandResultData(
-	result: E2BCommandResult,
+	result: CommandResult,
 	sandboxId: string,
 	operation: string,
 	startedAt: number,
@@ -346,23 +293,8 @@ export function toOperationCommandResultData(
 		exitCode: result.exitCode,
 		stdout: result.stdout,
 		stderr: result.stderr,
+		error: result.error,
 		executionTimeMs: Date.now() - startedAt,
 		...extra,
 	};
-}
-
-export async function resolveCommandResult(
-	executeFunctions: IExecuteFunctions,
-	itemIndex: number,
-	commandExitErrorClass: typeof E2BSDK.CommandExitError,
-	action: () => Promise<E2BCommandResult>,
-): Promise<E2BCommandResult> {
-	try {
-		return await action();
-	} catch (error) {
-		if (error instanceof commandExitErrorClass) return error;
-		throw new NodeOperationError(executeFunctions.getNode(), getErrorMessage(error), {
-			itemIndex,
-		});
-	}
 }

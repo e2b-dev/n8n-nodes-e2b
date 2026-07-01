@@ -8,7 +8,6 @@ import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
 import { getOperationHandler } from './actions';
 import { getErrorMessage, getTimeoutMs } from './helpers';
-import { loadE2B } from './sdk';
 import { isOperationForResource, isResource } from './types';
 
 export class E2b implements INodeType {
@@ -964,7 +963,6 @@ export class E2b implements INodeType {
 		const items = this.getInputData();
 		const credentials = await this.getCredentials('e2bApi');
 		const returnData: INodeExecutionData[] = [];
-		const sdk = await loadE2B();
 
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
@@ -989,7 +987,6 @@ export class E2b implements INodeType {
 					executeFunctions: this,
 					credentials,
 					itemIndex,
-					sdk,
 					timeoutMs: getTimeoutMs(this, itemIndex),
 				});
 				returnData.push(...itemData);
