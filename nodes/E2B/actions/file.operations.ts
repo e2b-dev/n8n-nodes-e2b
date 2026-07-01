@@ -1,28 +1,35 @@
 import {
-	buildConnectOpts,
-	getRequiredStringParameter,
-	toFileInfoData,
-} from '../helpers';
+	connectSandbox,
+	createSandboxFolder,
+	deleteSandboxFile,
+	getSandboxFileInfo,
+	listSandboxFiles,
+	moveSandboxFile,
+	readSandboxFile,
+	writeSandboxFile,
+} from '../client';
+import { getRequiredStringParameter, toFileInfoData } from '../helpers';
 import type { E2BOperationContext } from '../types';
 
 async function getConnectedSandbox(context: E2BOperationContext) {
-	const { executeFunctions, credentials, itemIndex, sdk, timeoutMs } = context;
+	const { executeFunctions, credentials, itemIndex, timeoutMs } = context;
+	const connection = { executeFunctions, credentials, timeoutMs };
 	const sandboxId = getRequiredStringParameter(
 		executeFunctions,
 		'sandboxId',
 		'Sandbox ID',
 		itemIndex,
 	);
-	const sandbox = await sdk.Sandbox.connect(sandboxId, buildConnectOpts(credentials, timeoutMs));
+	const sandbox = await connectSandbox(connection, sandboxId);
 
-	return { sandbox, sandboxId };
+	return { connection, sandbox, sandboxId };
 }
 
 export async function createFolder(context: E2BOperationContext) {
-	const { executeFunctions, itemIndex, timeoutMs } = context;
-	const { sandbox, sandboxId } = await getConnectedSandbox(context);
+	const { executeFunctions, itemIndex } = context;
+	const { connection, sandbox, sandboxId } = await getConnectedSandbox(context);
 	const path = getRequiredStringParameter(executeFunctions, 'path', 'Path', itemIndex);
-	const created = await sandbox.files.makeDir(path, { requestTimeoutMs: timeoutMs });
+	const created = await createSandboxFolder(connection, sandbox, path);
 
 	return [
 		{
@@ -37,10 +44,10 @@ export async function createFolder(context: E2BOperationContext) {
 }
 
 export async function deleteFile(context: E2BOperationContext) {
-	const { executeFunctions, itemIndex, timeoutMs } = context;
-	const { sandbox, sandboxId } = await getConnectedSandbox(context);
+	const { executeFunctions, itemIndex } = context;
+	const { connection, sandbox, sandboxId } = await getConnectedSandbox(context);
 	const path = getRequiredStringParameter(executeFunctions, 'path', 'Path', itemIndex);
-	await sandbox.files.remove(path, { requestTimeoutMs: timeoutMs });
+	await deleteSandboxFile(connection, sandbox, path);
 
 	return [
 		{
@@ -55,8 +62,8 @@ export async function deleteFile(context: E2BOperationContext) {
 }
 
 export async function download(context: E2BOperationContext) {
-	const { executeFunctions, itemIndex, timeoutMs } = context;
-	const { sandbox, sandboxId } = await getConnectedSandbox(context);
+	const { executeFunctions, itemIndex } = context;
+	const { connection, sandbox, sandboxId } = await getConnectedSandbox(context);
 	const remotePath = getRequiredStringParameter(
 		executeFunctions,
 		'remotePath',
@@ -69,13 +76,11 @@ export async function download(context: E2BOperationContext) {
 		'Binary Field',
 		itemIndex,
 	);
-	const content = await sandbox.files.read(remotePath, {
-		format: 'bytes',
-		requestTimeoutMs: timeoutMs,
-	});
+	const content = await readSandboxFile(connection, sandbox, remotePath, 'bytes');
+	const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content);
 	const filename = remotePath.split('/').pop()?.trim() || 'download';
 	const binaryData = await executeFunctions.helpers.prepareBinaryData(
-		Buffer.from(content),
+		buffer,
 		filename,
 		'application/octet-stream',
 	);
@@ -86,7 +91,7 @@ export async function download(context: E2BOperationContext) {
 				sandboxId,
 				remotePath,
 				fileName: filename,
-				sizeBytes: content.byteLength,
+				sizeBytes: buffer.byteLength,
 			},
 			binary: {
 				[binaryPropertyName]: binaryData,
@@ -97,10 +102,10 @@ export async function download(context: E2BOperationContext) {
 }
 
 export async function info(context: E2BOperationContext) {
-	const { executeFunctions, itemIndex, timeoutMs } = context;
-	const { sandbox, sandboxId } = await getConnectedSandbox(context);
+	const { executeFunctions, itemIndex } = context;
+	const { connection, sandbox, sandboxId } = await getConnectedSandbox(context);
 	const path = getRequiredStringParameter(executeFunctions, 'path', 'Path', itemIndex);
-	const fileInfo = await sandbox.files.getInfo(path, { requestTimeoutMs: timeoutMs });
+	const fileInfo = await getSandboxFileInfo(connection, sandbox, path);
 
 	return [
 		{
@@ -114,14 +119,16 @@ export async function info(context: E2BOperationContext) {
 }
 
 export async function list(context: E2BOperationContext) {
-	const { executeFunctions, itemIndex, timeoutMs } = context;
-	const { sandbox, sandboxId } = await getConnectedSandbox(context);
+	const { executeFunctions, itemIndex } = context;
+	const { connection, sandbox, sandboxId } = await getConnectedSandbox(context);
 	const path = getRequiredStringParameter(executeFunctions, 'path', 'Path', itemIndex);
 	const depth = Number(executeFunctions.getNodeParameter('depth', itemIndex, 1));
-	const entries = await sandbox.files.list(path, {
-		depth: Number.isInteger(depth) && depth > 0 ? depth : 1,
-		requestTimeoutMs: timeoutMs,
-	});
+	const entries = await listSandboxFiles(
+		connection,
+		sandbox,
+		path,
+		Number.isInteger(depth) && depth > 0 ? depth : 1,
+	);
 
 	return [
 		{
@@ -137,8 +144,8 @@ export async function list(context: E2BOperationContext) {
 }
 
 export async function move(context: E2BOperationContext) {
-	const { executeFunctions, itemIndex, timeoutMs } = context;
-	const { sandbox, sandboxId } = await getConnectedSandbox(context);
+	const { executeFunctions, itemIndex } = context;
+	const { connection, sandbox, sandboxId } = await getConnectedSandbox(context);
 	const source = getRequiredStringParameter(executeFunctions, 'source', 'Source', itemIndex);
 	const destination = getRequiredStringParameter(
 		executeFunctions,
@@ -146,9 +153,7 @@ export async function move(context: E2BOperationContext) {
 		'Destination',
 		itemIndex,
 	);
-	const fileInfo = await sandbox.files.rename(source, destination, {
-		requestTimeoutMs: timeoutMs,
-	});
+	const fileInfo = await moveSandboxFile(connection, sandbox, source, destination);
 
 	return [
 		{
@@ -164,13 +169,10 @@ export async function move(context: E2BOperationContext) {
 }
 
 export async function read(context: E2BOperationContext) {
-	const { executeFunctions, itemIndex, timeoutMs } = context;
-	const { sandbox, sandboxId } = await getConnectedSandbox(context);
+	const { executeFunctions, itemIndex } = context;
+	const { connection, sandbox, sandboxId } = await getConnectedSandbox(context);
 	const path = getRequiredStringParameter(executeFunctions, 'path', 'Path', itemIndex);
-	const content = await sandbox.files.read(path, {
-		format: 'text',
-		requestTimeoutMs: timeoutMs,
-	});
+	const content = await readSandboxFile(connection, sandbox, path, 'text');
 
 	return [
 		{
@@ -185,8 +187,8 @@ export async function read(context: E2BOperationContext) {
 }
 
 export async function upload(context: E2BOperationContext) {
-	const { executeFunctions, itemIndex, timeoutMs } = context;
-	const { sandbox, sandboxId } = await getConnectedSandbox(context);
+	const { executeFunctions, itemIndex } = context;
+	const { connection, sandbox, sandboxId } = await getConnectedSandbox(context);
 	const remotePath = getRequiredStringParameter(
 		executeFunctions,
 		'remotePath',
@@ -201,10 +203,7 @@ export async function upload(context: E2BOperationContext) {
 	);
 	const binaryMeta = executeFunctions.helpers.assertBinaryData(itemIndex, binaryPropertyName);
 	const buffer = await executeFunctions.helpers.getBinaryDataBuffer(itemIndex, binaryPropertyName);
-	const content = new Uint8Array(buffer).buffer;
-	const fileInfo = await sandbox.files.write(remotePath, content, {
-		requestTimeoutMs: timeoutMs,
-	});
+	const fileInfo = await writeSandboxFile(connection, sandbox, remotePath, buffer);
 
 	return [
 		{
@@ -222,13 +221,11 @@ export async function upload(context: E2BOperationContext) {
 }
 
 export async function write(context: E2BOperationContext) {
-	const { executeFunctions, itemIndex, timeoutMs } = context;
-	const { sandbox, sandboxId } = await getConnectedSandbox(context);
+	const { executeFunctions, itemIndex } = context;
+	const { connection, sandbox, sandboxId } = await getConnectedSandbox(context);
 	const path = getRequiredStringParameter(executeFunctions, 'path', 'Path', itemIndex);
 	const content = executeFunctions.getNodeParameter('content', itemIndex, '');
-	const fileInfo = await sandbox.files.write(path, String(content), {
-		requestTimeoutMs: timeoutMs,
-	});
+	const fileInfo = await writeSandboxFile(connection, sandbox, path, String(content));
 
 	return [
 		{

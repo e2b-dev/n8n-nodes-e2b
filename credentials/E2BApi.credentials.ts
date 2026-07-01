@@ -10,7 +10,7 @@ export class E2BApi implements ICredentialType {
 
 	displayName = 'E2B API';
 
-	documentationUrl = 'https://e2b.dev/docs/getting-started/api-key';
+	documentationUrl = 'https://e2b.dev/docs/api-key';
 
 	icon = { light: 'file:e2b.svg', dark: 'file:e2b.dark.svg' } as const;
 
@@ -58,8 +58,8 @@ export class E2BApi implements ICredentialType {
 
 	test: ICredentialTestRequest = {
 		request: {
-			baseURL: 'https://api.e2b.dev',
-			url: '/sandboxes',
+			baseURL: 'https://api.e2b.app',
+			url: '/v2/sandboxes',
 			method: 'GET',
 		},
 	};

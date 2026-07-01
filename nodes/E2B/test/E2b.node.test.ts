@@ -1,7 +1,5 @@
 import type { IExecuteFunctions } from 'n8n-workflow';
-import type { Mock } from 'vitest';
 import { NodeOperationError } from 'n8n-workflow';
-import { mockDeep } from 'vitest-mock-extended';
 
 import { E2b } from '../E2b.node';
 
@@ -9,18 +7,13 @@ interface MockCommandResult {
 	exitCode: number;
 	stdout: string;
 	stderr: string;
+	error?: string;
 }
 
-interface MockFileInfo {
-	name: string;
-	type: 'file' | 'dir';
-	path: string;
-	size: number;
-	mode: number;
-	permissions: string;
-	owner: string;
-	group: string;
-	modifiedTime: Date;
+interface MockSandbox {
+	sandboxId: string;
+	sandboxDomain: string;
+	envdVersion: string;
 }
 
 interface MockSandboxInfo {
@@ -29,8 +22,8 @@ interface MockSandboxInfo {
 	name?: string;
 	state: 'running' | 'paused';
 	metadata: Record<string, string>;
-	startedAt: Date;
-	endAt: Date;
+	startedAt: string;
+	endAt: string;
 	cpuCount: number;
 	memoryMB: number;
 	envdVersion: string;
@@ -41,60 +34,39 @@ interface MockSnapshotInfo {
 	names: string[];
 }
 
-interface MockSandbox {
-	sandboxId: string;
-	sandboxDomain: string;
-	commands: {
-		run: Mock<(command: string, options?: unknown) => Promise<MockCommandResult>>;
-	};
-	files: {
-		read: Mock<(path: string, options?: unknown) => Promise<string | Uint8Array>>;
-		write: Mock<(path: string, data: string | ArrayBuffer, options?: unknown) => Promise<MockFileInfo>>;
-		list: Mock<(path: string, options?: unknown) => Promise<MockFileInfo[]>>;
-		makeDir: Mock<(path: string, options?: unknown) => Promise<boolean>>;
-		rename: Mock<(source: string, destination: string, options?: unknown) => Promise<MockFileInfo>>;
-		remove: Mock<(path: string, options?: unknown) => Promise<void>>;
-		getInfo: Mock<(path: string, options?: unknown) => Promise<MockFileInfo>>;
-	};
-	git: {
-		clone: Mock<(url: string, options?: unknown) => Promise<MockCommandResult>>;
-		status: Mock<(path: string, options?: unknown) => Promise<Record<string, unknown>>>;
-		add: Mock<(path: string, options?: unknown) => Promise<MockCommandResult>>;
-		commit: Mock<(path: string, message: string, options?: unknown) => Promise<MockCommandResult>>;
-		pull: Mock<(path: string, options?: unknown) => Promise<MockCommandResult>>;
-		push: Mock<(path: string, options?: unknown) => Promise<MockCommandResult>>;
-	};
-	getHost: Mock<(port: number) => string>;
-	getInfo: Mock<() => Promise<MockSandboxInfo>>;
-	kill: Mock<() => Promise<boolean>>;
+interface MockFileInfo {
+	name: string;
+	type: 'file' | 'dir';
+	path: string;
+	size?: number;
+	mode?: number;
+	permissions?: string;
+	owner?: string;
+	group?: string;
+	modifiedTime?: string;
 }
 
-const { Sandbox, CommandExitError, Volume, makeMockSandbox, resetE2BNodeMockState } = vi.hoisted(() => {
-	class CommandExitError extends Error implements MockCommandResult {
-		readonly exitCode: number;
-		readonly stdout: string;
-		readonly stderr: string;
-
-		constructor(result: MockCommandResult) {
-			super(result.stderr || result.stdout || `Command exited with ${result.exitCode}`);
-			this.exitCode = result.exitCode;
-			this.stdout = result.stdout;
-			this.stderr = result.stderr;
-		}
+const e2bClient = vi.hoisted(() => {
+	function makeSandbox(sandboxId = 'sb-node'): MockSandbox {
+		return {
+			sandboxId,
+			sandboxDomain: 'e2b.app',
+			envdVersion: '0.4.0',
+		};
 	}
 
-	function makeSandboxInfo(sandboxId: string): MockSandboxInfo {
+	function makeSandboxInfo(sandboxId = 'sb-node'): MockSandboxInfo {
 		return {
 			sandboxId,
 			templateId: 'base',
 			name: 'base',
 			state: 'running',
 			metadata: {},
-			startedAt: new Date('2026-01-01T00:00:00.000Z'),
-			endAt: new Date('2026-01-01T00:05:00.000Z'),
+			startedAt: '2026-01-01T00:00:00.000Z',
+			endAt: '2026-01-01T00:05:00.000Z',
 			cpuCount: 2,
 			memoryMB: 1024,
-			envdVersion: '0.1.0',
+			envdVersion: '0.4.0',
 		};
 	}
 
@@ -108,110 +80,115 @@ const { Sandbox, CommandExitError, Volume, makeMockSandbox, resetE2BNodeMockStat
 			permissions: 'rw-r--r--',
 			owner: 'user',
 			group: 'user',
-			modifiedTime: new Date('2026-01-01T00:00:00.000Z'),
+			modifiedTime: '2026-01-01T00:00:00.000Z',
 		};
 	}
 
-	function makeMockSandbox(sandboxId = 'sb-node'): MockSandbox {
-		return {
-			sandboxId,
-			sandboxDomain: `${sandboxId}.e2b.dev`,
-			commands: {
-				run: vi.fn(async () => ({ exitCode: 0, stdout: 'ok', stderr: '' })),
-			},
-			files: {
-				read: vi.fn(async () => 'file content'),
-				write: vi.fn(async (path: string) => makeFileInfo(path)),
-				list: vi.fn(async (path: string) => [makeFileInfo(`${path}/index.ts`)]),
-				makeDir: vi.fn(async () => true),
-				rename: vi.fn(async (_source: string, destination: string) => makeFileInfo(destination)),
-				remove: vi.fn(async () => {}),
-				getInfo: vi.fn(async (path: string) => makeFileInfo(path)),
-			},
-			git: {
-				clone: vi.fn(async () => ({ exitCode: 0, stdout: 'cloned', stderr: '' })),
-				status: vi.fn(async () => ({ isClean: true, fileStatus: [] })),
-				add: vi.fn(async () => ({ exitCode: 0, stdout: 'added', stderr: '' })),
-				commit: vi.fn(async () => ({ exitCode: 0, stdout: 'committed', stderr: '' })),
-				pull: vi.fn(async () => ({ exitCode: 0, stdout: 'pulled', stderr: '' })),
-				push: vi.fn(async () => ({ exitCode: 0, stdout: 'pushed', stderr: '' })),
-			},
-			getHost: vi.fn((port: number) => `${port}-${sandboxId}.e2b.dev`),
-			getInfo: vi.fn(async () => makeSandboxInfo(sandboxId)),
-			kill: vi.fn(async () => true),
-		};
-	}
-
-	const Sandbox = {
-		create: vi.fn(),
-		connect: vi.fn(),
-		list: vi.fn(),
-		listSnapshots: vi.fn(),
-		getInfo: vi.fn(),
+	const mocks = {
+		connectSandbox: vi.fn(),
+		createSandbox: vi.fn(),
+		createSandboxFolder: vi.fn(),
 		createSnapshot: vi.fn(),
+		createVolume: vi.fn(),
+		deleteSandboxFile: vi.fn(),
 		deleteSnapshot: vi.fn(),
-		pause: vi.fn(),
-		kill: vi.fn(),
+		deleteVolume: vi.fn(),
+		getPreviewHost: vi.fn(),
+		getSandboxFileInfo: vi.fn(),
+		getSandboxInfo: vi.fn(),
+		getVolume: vi.fn(),
+		killSandbox: vi.fn(),
+		listSandboxFiles: vi.fn(),
+		listSandboxes: vi.fn(),
+		listSnapshots: vi.fn(),
+		listVolumes: vi.fn(),
+		moveSandboxFile: vi.fn(),
+		pauseSandbox: vi.fn(),
+		readSandboxFile: vi.fn(),
+		runSandboxCommand: vi.fn(),
+		writeSandboxFile: vi.fn(),
+		makeSandbox,
+		makeSandboxInfo,
+		makeFileInfo,
 	};
 
-	const Volume = {
-		create: vi.fn(),
-		getInfo: vi.fn(),
-		list: vi.fn(),
-		destroy: vi.fn(),
-	};
+	function reset(): void {
+		for (const value of Object.values(mocks)) {
+			if (typeof value === 'function' && 'mockReset' in value) value.mockReset();
+		}
 
-	function resetE2BNodeMockState(): void {
-		Sandbox.create.mockReset();
-		Sandbox.connect.mockReset();
-		Sandbox.list.mockReset();
-		Sandbox.listSnapshots.mockReset();
-		Sandbox.getInfo.mockReset();
-		Sandbox.createSnapshot.mockReset();
-		Sandbox.deleteSnapshot.mockReset();
-		Sandbox.pause.mockReset();
-		Sandbox.kill.mockReset();
-		Volume.create.mockReset();
-		Volume.getInfo.mockReset();
-		Volume.list.mockReset();
-		Volume.destroy.mockReset();
-		Sandbox.create.mockResolvedValue(makeMockSandbox());
-		Sandbox.connect.mockResolvedValue(makeMockSandbox());
-		Sandbox.list.mockReturnValue({ nextItems: vi.fn(async () => []) });
-		Sandbox.listSnapshots.mockReturnValue({ nextItems: vi.fn(async () => []) });
-		Sandbox.getInfo.mockResolvedValue(makeSandboxInfo('sb-node'));
-		Sandbox.createSnapshot.mockResolvedValue({
+		mocks.connectSandbox.mockResolvedValue(makeSandbox());
+		mocks.createSandbox.mockResolvedValue(makeSandbox());
+		mocks.createSandboxFolder.mockResolvedValue(true);
+		mocks.createSnapshot.mockResolvedValue({
 			snapshotId: 'snap-node:default',
 			names: ['team/snap-node:default'],
 		} satisfies MockSnapshotInfo);
-		Sandbox.deleteSnapshot.mockResolvedValue(true);
-		Sandbox.pause.mockResolvedValue(true);
-		Sandbox.kill.mockResolvedValue(true);
-		Volume.create.mockResolvedValue({ volumeId: 'vol-node', name: 'my-volume', token: 'token' });
-		Volume.getInfo.mockResolvedValue({ volumeId: 'vol-node', name: 'my-volume', token: 'token' });
-		Volume.list.mockResolvedValue([{ volumeId: 'vol-node', name: 'my-volume' }]);
-		Volume.destroy.mockResolvedValue(true);
+		mocks.createVolume.mockResolvedValue({ volumeId: 'vol-node', name: 'my-volume', token: 'token' });
+		mocks.deleteSnapshot.mockResolvedValue(true);
+		mocks.deleteVolume.mockResolvedValue(true);
+		mocks.getPreviewHost.mockReturnValue('3000-sb-preview.e2b.app');
+		mocks.getSandboxFileInfo.mockResolvedValue(makeFileInfo('/tmp/app.py'));
+		mocks.getSandboxInfo.mockResolvedValue(makeSandboxInfo());
+		mocks.getVolume.mockResolvedValue({ volumeId: 'vol-node', name: 'my-volume', token: 'token' });
+		mocks.killSandbox.mockResolvedValue(true);
+		mocks.listSandboxFiles.mockResolvedValue([makeFileInfo('/tmp/index.ts')]);
+		mocks.listSandboxes.mockResolvedValue([]);
+		mocks.listSnapshots.mockResolvedValue([]);
+		mocks.listVolumes.mockResolvedValue([{ volumeId: 'vol-node', name: 'my-volume' }]);
+		mocks.moveSandboxFile.mockResolvedValue(makeFileInfo('/tmp/new-name.txt'));
+		mocks.pauseSandbox.mockResolvedValue(true);
+		mocks.readSandboxFile.mockResolvedValue('file content');
+		mocks.runSandboxCommand.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '' } satisfies MockCommandResult);
+		mocks.writeSandboxFile.mockResolvedValue(makeFileInfo('/tmp/app.py'));
 	}
 
-	resetE2BNodeMockState();
+	reset();
 
-	return {
-		Sandbox,
-		CommandExitError,
-		Volume,
-		makeMockSandbox,
-		resetE2BNodeMockState,
-	};
+	return { ...mocks, reset };
 });
 
-vi.mock('e2b', () => ({
-	Sandbox,
-	CommandExitError,
-	Volume,
+vi.mock('../client', () => ({
+	connectSandbox: e2bClient.connectSandbox,
+	createSandbox: e2bClient.createSandbox,
+	createSandboxFolder: e2bClient.createSandboxFolder,
+	createSnapshot: e2bClient.createSnapshot,
+	createVolume: e2bClient.createVolume,
+	deleteSandboxFile: e2bClient.deleteSandboxFile,
+	deleteSnapshot: e2bClient.deleteSnapshot,
+	deleteVolume: e2bClient.deleteVolume,
+	getPreviewHost: e2bClient.getPreviewHost,
+	getSandboxFileInfo: e2bClient.getSandboxFileInfo,
+	getSandboxInfo: e2bClient.getSandboxInfo,
+	getVolume: e2bClient.getVolume,
+	killSandbox: e2bClient.killSandbox,
+	listSandboxFiles: e2bClient.listSandboxFiles,
+	listSandboxes: e2bClient.listSandboxes,
+	listSnapshots: e2bClient.listSnapshots,
+	listVolumes: e2bClient.listVolumes,
+	moveSandboxFile: e2bClient.moveSandboxFile,
+	pauseSandbox: e2bClient.pauseSandbox,
+	readSandboxFile: e2bClient.readSandboxFile,
+	runSandboxCommand: e2bClient.runSandboxCommand,
+	writeSandboxFile: e2bClient.writeSandboxFile,
 }));
 
 function setupExecuteFunctions(params: Record<string, unknown>) {
-	const executeFunctions = mockDeep<IExecuteFunctions>();
+	const executeFunctions = {
+		getInputData: vi.fn(),
+		getCredentials: vi.fn(),
+		getNode: vi.fn(),
+		getNodeParameter: vi.fn(),
+		continueOnFail: vi.fn(),
+		helpers: {
+			assertBinaryData: vi.fn(),
+			getBinaryDataBuffer: vi.fn(),
+			httpRequest: vi.fn(),
+			httpRequestWithAuthentication: vi.fn(),
+			prepareBinaryData: vi.fn(),
+		},
+	} as unknown as IExecuteFunctions;
+
 	executeFunctions.getInputData.mockReturnValue([{ json: {} }]);
 	executeFunctions.getCredentials.mockResolvedValue({ apiKey: 'api-key' });
 	executeFunctions.getNode.mockReturnValue({
@@ -248,32 +225,29 @@ function defaultRunCommandParams(overrides: Record<string, unknown> = {}): Recor
 }
 
 beforeEach(() => {
-	resetE2BNodeMockState();
+	e2bClient.reset();
 });
 
 describe('E2B node', () => {
 	it('kills a created sandbox when command execution fails unexpectedly', async () => {
-		const sandbox = makeMockSandbox('sb-cleanup');
-		sandbox.commands.run.mockRejectedValue(new Error('network reset'));
-		Sandbox.create.mockResolvedValue(sandbox);
+		const sandbox = e2bClient.makeSandbox('sb-cleanup');
+		e2bClient.createSandbox.mockResolvedValue(sandbox);
+		e2bClient.runSandboxCommand.mockRejectedValue(new Error('network reset'));
 		const executeFunctions = setupExecuteFunctions(defaultRunCommandParams());
 
 		await expect(new E2b().execute.call(executeFunctions)).rejects.toThrow(/network reset/i);
 
-		expect(sandbox.kill).toHaveBeenCalledWith(
-			expect.objectContaining({
-				apiKey: 'api-key',
-				requestTimeoutMs: 120_000,
-			}),
-		);
+		expect(e2bClient.killSandbox).toHaveBeenCalledWith(expect.any(Object), 'sb-cleanup');
 	});
 
 	it('kills a created sandbox after a handled command exit', async () => {
-		const sandbox = makeMockSandbox('sb-command-exit');
-		sandbox.commands.run.mockRejectedValue(
-			new CommandExitError({ exitCode: 2, stdout: '', stderr: 'command failed' }),
-		);
-		Sandbox.create.mockResolvedValue(sandbox);
+		const sandbox = e2bClient.makeSandbox('sb-command-exit');
+		e2bClient.createSandbox.mockResolvedValue(sandbox);
+		e2bClient.runSandboxCommand.mockResolvedValue({
+			exitCode: 2,
+			stdout: '',
+			stderr: 'command failed',
+		} satisfies MockCommandResult);
 		const executeFunctions = setupExecuteFunctions(defaultRunCommandParams());
 
 		const result = await new E2b().execute.call(executeFunctions);
@@ -287,18 +261,12 @@ describe('E2B node', () => {
 				killedAfterRun: true,
 			}),
 		);
-		expect(sandbox.kill).toHaveBeenCalledWith(
-			expect.objectContaining({
-				apiKey: 'api-key',
-				requestTimeoutMs: 120_000,
-			}),
-		);
+		expect(e2bClient.killSandbox).toHaveBeenCalledWith(expect.any(Object), 'sb-command-exit');
 	});
 
 	it('fails visibly when killAfterRun cleanup fails after a successful command', async () => {
-		const sandbox = makeMockSandbox('sb-cleanup-fail');
-		sandbox.kill.mockRejectedValue(new Error('cleanup failed'));
-		Sandbox.create.mockResolvedValue(sandbox);
+		e2bClient.createSandbox.mockResolvedValue(e2bClient.makeSandbox('sb-cleanup-fail'));
+		e2bClient.killSandbox.mockRejectedValue(new Error('cleanup failed'));
 		const executeFunctions = setupExecuteFunctions(defaultRunCommandParams());
 
 		let error: unknown;
@@ -326,13 +294,10 @@ describe('E2B node', () => {
 
 		const result = await new E2b().execute.call(executeFunctions);
 
-		expect(Sandbox.createSnapshot).toHaveBeenCalledWith(
+		expect(e2bClient.createSnapshot).toHaveBeenCalledWith(
+			expect.any(Object),
 			'sb-source',
-			expect.objectContaining({
-				apiKey: 'api-key',
-				name: 'checkpoint',
-				requestTimeoutMs: 120_000,
-			}),
+			'checkpoint',
 		);
 		expect(result[0]?.[0]?.json).toEqual({
 			snapshotId: 'snap-node:default',
@@ -341,14 +306,12 @@ describe('E2B node', () => {
 	});
 
 	it('lists snapshots with an optional source sandbox filter', async () => {
-		Sandbox.listSnapshots.mockReturnValue({
-			nextItems: vi.fn(async () => [
-				{
-					snapshotId: 'snap-one:default',
-					names: ['team/snap-one:default'],
-				},
-			]),
-		});
+		e2bClient.listSnapshots.mockResolvedValue([
+			{
+				snapshotId: 'snap-one:default',
+				names: ['team/snap-one:default'],
+			},
+		]);
 		const executeFunctions = setupExecuteFunctions({
 			resource: 'snapshot',
 			operation: 'getMany',
@@ -359,14 +322,7 @@ describe('E2B node', () => {
 
 		const result = await new E2b().execute.call(executeFunctions);
 
-		expect(Sandbox.listSnapshots).toHaveBeenCalledWith(
-			expect.objectContaining({
-				apiKey: 'api-key',
-				sandboxId: 'sb-source',
-				limit: 10,
-				requestTimeoutMs: 120_000,
-			}),
-		);
+		expect(e2bClient.listSnapshots).toHaveBeenCalledWith(expect.any(Object), 10, 'sb-source');
 		expect(result[0]?.[0]?.json).toEqual({
 			snapshotId: 'snap-one:default',
 			names: ['team/snap-one:default'],
@@ -383,13 +339,7 @@ describe('E2B node', () => {
 
 		const result = await new E2b().execute.call(executeFunctions);
 
-		expect(Sandbox.deleteSnapshot).toHaveBeenCalledWith(
-			'snap-node:default',
-			expect.objectContaining({
-				apiKey: 'api-key',
-				requestTimeoutMs: 120_000,
-			}),
-		);
+		expect(e2bClient.deleteSnapshot).toHaveBeenCalledWith(expect.any(Object), 'snap-node:default');
 		expect(result[0]?.[0]?.json).toEqual({
 			snapshotId: 'snap-node:default',
 			deleted: true,
@@ -397,6 +347,8 @@ describe('E2B node', () => {
 	});
 
 	it('passes volume mounts when creating a sandbox', async () => {
+		e2bClient.createSandbox.mockResolvedValue(e2bClient.makeSandbox('sb-volume'));
+		e2bClient.getSandboxInfo.mockResolvedValue(e2bClient.makeSandboxInfo('sb-volume'));
 		const executeFunctions = setupExecuteFunctions({
 			resource: 'sandbox',
 			operation: 'create',
@@ -410,20 +362,20 @@ describe('E2B node', () => {
 
 		await new E2b().execute.call(executeFunctions);
 
-		expect(Sandbox.create).toHaveBeenCalledWith(
+		expect(e2bClient.createSandbox).toHaveBeenCalledWith(
+			expect.any(Object),
 			expect.objectContaining({
-				apiKey: 'api-key',
 				volumeMounts: {
 					'/data': 'my-volume',
 				},
-				requestTimeoutMs: 120_000,
+				timeoutMs: 120_000,
 			}),
 		);
 	});
 
 	it('gets a preview URL for a sandbox port', async () => {
-		const sandbox = makeMockSandbox('sb-preview');
-		Sandbox.connect.mockResolvedValue(sandbox);
+		const sandbox = e2bClient.makeSandbox('sb-preview');
+		e2bClient.connectSandbox.mockResolvedValue(sandbox);
 		const executeFunctions = setupExecuteFunctions({
 			resource: 'sandbox',
 			operation: 'getPreviewUrl',
@@ -434,18 +386,19 @@ describe('E2B node', () => {
 
 		const result = await new E2b().execute.call(executeFunctions);
 
-		expect(sandbox.getHost).toHaveBeenCalledWith(3000);
+		expect(e2bClient.getPreviewHost).toHaveBeenCalledWith(expect.any(Object), sandbox, 3000);
 		expect(result[0]?.[0]?.json).toEqual({
 			sandboxId: 'sb-preview',
 			port: 3000,
-			host: '3000-sb-preview.e2b.dev',
-			url: 'https://3000-sb-preview.e2b.dev',
+			host: '3000-sb-preview.e2b.app',
+			url: 'https://3000-sb-preview.e2b.app',
 		});
 	});
 
 	it('writes text content to a sandbox file', async () => {
-		const sandbox = makeMockSandbox('sb-files');
-		Sandbox.connect.mockResolvedValue(sandbox);
+		const sandbox = e2bClient.makeSandbox('sb-files');
+		e2bClient.connectSandbox.mockResolvedValue(sandbox);
+		e2bClient.writeSandboxFile.mockResolvedValue(e2bClient.makeFileInfo('/tmp/app.py'));
 		const executeFunctions = setupExecuteFunctions({
 			resource: 'file',
 			operation: 'write',
@@ -457,12 +410,11 @@ describe('E2B node', () => {
 
 		const result = await new E2b().execute.call(executeFunctions);
 
-		expect(sandbox.files.write).toHaveBeenCalledWith(
+		expect(e2bClient.writeSandboxFile).toHaveBeenCalledWith(
+			expect.any(Object),
+			sandbox,
 			'/tmp/app.py',
 			'print(42)',
-			expect.objectContaining({
-				requestTimeoutMs: 120_000,
-			}),
 		);
 		expect(result[0]?.[0]?.json).toEqual(
 			expect.objectContaining({
@@ -474,8 +426,8 @@ describe('E2B node', () => {
 	});
 
 	it('clones a repository and checks out a commit when requested', async () => {
-		const sandbox = makeMockSandbox('sb-git');
-		Sandbox.connect.mockResolvedValue(sandbox);
+		const sandbox = e2bClient.makeSandbox('sb-git');
+		e2bClient.connectSandbox.mockResolvedValue(sandbox);
 		const executeFunctions = setupExecuteFunctions({
 			resource: 'git',
 			operation: 'clone',
@@ -492,19 +444,20 @@ describe('E2B node', () => {
 
 		const result = await new E2b().execute.call(executeFunctions);
 
-		expect(sandbox.git.clone).toHaveBeenCalledWith(
-			'https://github.com/e2b-dev/e2b.git',
+		expect(e2bClient.runSandboxCommand).toHaveBeenCalledWith(
+			expect.any(Object),
+			sandbox,
+			"'git' 'clone' 'https://github.com/e2b-dev/e2b.git' '--branch' 'main' '--single-branch' '--depth' '2' '/tmp/repo'",
 			expect.objectContaining({
-				path: '/tmp/repo',
-				branch: 'main',
-				depth: 2,
-				requestTimeoutMs: 120_000,
+				envs: { GIT_TERMINAL_PROMPT: '0' },
 			}),
 		);
-		expect(sandbox.commands.run).toHaveBeenCalledWith(
-			"git -C '/tmp/repo' checkout 'abc123'",
+		expect(e2bClient.runSandboxCommand).toHaveBeenCalledWith(
+			expect.any(Object),
+			sandbox,
+			"'git' '-C' '/tmp/repo' 'checkout' 'abc123'",
 			expect.objectContaining({
-				requestTimeoutMs: 120_000,
+				envs: { GIT_TERMINAL_PROMPT: '0' },
 			}),
 		);
 		expect(result[0]?.[0]?.json).toEqual(
@@ -519,7 +472,7 @@ describe('E2B node', () => {
 	});
 
 	it('lists E2B volumes with the requested limit', async () => {
-		Volume.list.mockResolvedValue([
+		e2bClient.listVolumes.mockResolvedValue([
 			{ volumeId: 'vol-one', name: 'one' },
 			{ volumeId: 'vol-two', name: 'two' },
 		]);
@@ -532,12 +485,7 @@ describe('E2B node', () => {
 
 		const result = await new E2b().execute.call(executeFunctions);
 
-		expect(Volume.list).toHaveBeenCalledWith(
-			expect.objectContaining({
-				apiKey: 'api-key',
-				requestTimeoutMs: 120_000,
-			}),
-		);
+		expect(e2bClient.listVolumes).toHaveBeenCalledWith(expect.any(Object));
 		expect(result[0]).toHaveLength(1);
 		expect(result[0]?.[0]?.json).toEqual({
 			volumeId: 'vol-one',

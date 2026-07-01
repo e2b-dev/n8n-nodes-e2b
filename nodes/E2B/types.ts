@@ -1,11 +1,8 @@
-import type * as E2BSDK from 'e2b';
 import type {
 	ICredentialDataDecryptedObject,
 	IExecuteFunctions,
 	INodeExecutionData,
 } from 'n8n-workflow';
-
-export type E2BModule = typeof E2BSDK;
 
 export const RESOURCE_OPERATIONS = {
 	code: ['runCommand'],
@@ -26,7 +23,6 @@ export interface E2BOperationContext {
 	executeFunctions: IExecuteFunctions;
 	credentials: ICredentialDataDecryptedObject;
 	itemIndex: number;
-	sdk: E2BModule;
 	timeoutMs: number;
 }
 

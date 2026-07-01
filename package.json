@@ -2,6 +2,7 @@
   "name": "@e2b/n8n-nodes-e2b",
   "version": "0.1.0",
   "description": "n8n community node for E2B - create and manage sandboxes and snapshots, and run commands in cloud sandboxes from your workflows.",
+  "packageManager": "pnpm@11.7.0",
   "license": "MIT",
   "homepage": "https://github.com/e2b-dev/n8n-nodes-e2b#readme",
   "keywords": [
@@ -29,6 +30,7 @@
     "build:watch": "tsc --watch",
     "dev": "n8n-node dev",
     "lint": "n8n-node lint",
+    "lint:basic": "eslint . --config eslint.basic.config.mjs",
     "lint:fix": "n8n-node lint --fix",
     "release": "n8n-node release",
     "prepublishOnly": "n8n-node prerelease",
@@ -45,7 +47,7 @@
   },
   "n8n": {
     "n8nNodesApiVersion": 1,
-    "strict": false,
+    "strict": true,
     "credentials": [
       "dist/credentials/E2BApi.credentials.js"
     ],
@@ -56,13 +58,11 @@
   "devDependencies": {
     "@n8n/node-cli": "*",
     "@types/node": "^24.10.1",
-    "e2b": "2.30.0",
     "esbuild": "^0.28.1",
     "eslint": "9.29.0",
     "n8n-workflow": "^2.27.0",
     "typescript": "^5.9.2",
-    "vitest": "^4.1.5",
-    "vitest-mock-extended": "^3.1.0"
+    "vitest": "^4.1.5"
   },
   "peerDependencies": {
     "n8n-workflow": "*"
