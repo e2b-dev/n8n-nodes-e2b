@@ -40,6 +40,19 @@ The E2B node uses n8n's resource and operation layout:
 - Snapshot: Create, Get Many, Delete
 - Volume: Create, Get, Get Many, Delete
 
+## Examples
+
+Importable example workflows live in [`docs/examples/`](./docs/examples):
+
+Ordered simplest → most advanced (Level 1–4):
+
+- **Level 1** — [`1-run-command-ephemeral.json`](./docs/examples/1-run-command-ephemeral.json) — run a command in a one-shot ephemeral sandbox (the simplest flow).
+- **Level 2** — [`2-web-app-with-preview.json`](./docs/examples/2-web-app-with-preview.json) — write and start a web server, return a preview URL.
+- **Level 3** — [`3-clone-build-download.json`](./docs/examples/3-clone-build-download.json) — clone a repo, run a build, download the artifact back into n8n.
+- **Level 4** — [`4-ai-agent-tool.json`](./docs/examples/4-ai-agent-tool.json) — an AI Agent that runs code in E2B as a tool.
+
+In n8n: **Workflows → Import from File**, select a JSON, then set your **E2B API** credential. See [`docs/examples/README.md`](./docs/examples/README.md) for details.
+
 ## Development
 
 ```bash
