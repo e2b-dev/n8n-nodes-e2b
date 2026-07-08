@@ -234,7 +234,7 @@ export class E2b implements INodeType {
 						name: 'Get',
 						value: 'get',
 						action: 'Get a sandbox',
-						description: 'Retrieve a sandbox by ID',
+						description: 'Retrieve a sandbox by ID or by metadata filter',
 					},
 					{
 						name: 'Get Many',
@@ -334,18 +334,74 @@ export class E2b implements INodeType {
 				default: 'getMany',
 			},
 			{
+				displayName: 'Get By',
+				name: 'getBy',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'ID',
+						value: 'id',
+						description: 'Retrieve a sandbox by its ID',
+					},
+					{
+						name: 'Metadata',
+						value: 'metadata',
+						description: 'Retrieve the first sandbox matching a metadata filter',
+					},
+				],
+				default: 'id',
+				displayOptions: {
+					show: {
+						resource: ['sandbox'],
+						operation: ['get'],
+					},
+				},
+			},
+			{
 				displayName: 'Sandbox ID',
 				name: 'sandboxId',
 				type: 'string',
 				required: true,
 				default: '',
-					displayOptions: {
-						show: {
-							resource: ['sandbox'],
-							operation: ['get', 'getPreviewUrl', 'kill', 'pause'],
-						},
+				displayOptions: {
+					show: {
+						resource: ['sandbox'],
+						operation: ['get'],
+						getBy: ['id'],
 					},
 				},
+			},
+			{
+				displayName: 'Metadata Filter',
+				name: 'filterMetadataJson',
+				type: 'json',
+				required: true,
+				default: '{}',
+				placeholder: '{ "purpose": "my-agent" }',
+				description:
+					'Metadata key-value pairs the sandbox must match (combined with AND). The filter is applied server-side.',
+				displayOptions: {
+					show: {
+						resource: ['sandbox'],
+						operation: ['get'],
+						getBy: ['metadata'],
+					},
+				},
+			},
+			{
+				displayName: 'Sandbox ID',
+				name: 'sandboxId',
+				type: 'string',
+				required: true,
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['sandbox'],
+						operation: ['getPreviewUrl', 'kill', 'pause'],
+					},
+				},
+			},
 			{
 				displayName: 'Sandbox ID',
 				name: 'sandboxId',
