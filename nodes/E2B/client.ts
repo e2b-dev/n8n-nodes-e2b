@@ -34,6 +34,11 @@ export interface SandboxCreateOptions {
 	timeoutMs: number;
 }
 
+export interface SandboxListOptions {
+	limit?: number;
+	metadata?: Record<string, string>;
+}
+
 export interface SandboxInfo {
 	sandboxId: string;
 	templateId: string;
@@ -317,8 +322,19 @@ export async function getSandboxInfo(connection: E2BConnection, sandboxId: strin
 	return mapSandboxInfo(response);
 }
 
-export async function listSandboxes(connection: E2BConnection, limit: number): Promise<SandboxInfo[]> {
-	const response = await apiRequest<unknown>(connection, 'GET', '/v2/sandboxes', { qs: { limit } });
+export async function listSandboxes(
+	connection: E2BConnection,
+	options: SandboxListOptions = {},
+): Promise<SandboxInfo[]> {
+	const qs: IDataObject = {};
+	if (options.limit !== undefined) qs.limit = options.limit;
+	if (options.metadata && Object.keys(options.metadata).length > 0) {
+		// The API expects a single query string of URL-encoded key=value pairs, combined with AND.
+		qs.metadata = Object.entries(options.metadata)
+			.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+			.join('&');
+	}
+	const response = await apiRequest<unknown>(connection, 'GET', '/v2/sandboxes', { qs });
 	return Array.isArray(response) ? response.map(mapSandboxInfo) : [];
 }
 

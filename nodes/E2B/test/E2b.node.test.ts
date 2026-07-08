@@ -395,6 +395,89 @@ describe('E2B node', () => {
 		});
 	});
 
+	it('gets a sandbox by ID', async () => {
+		e2bClient.getSandboxInfo.mockResolvedValue(e2bClient.makeSandboxInfo('sb-by-id'));
+		const executeFunctions = setupExecuteFunctions({
+			resource: 'sandbox',
+			operation: 'get',
+			getBy: 'id',
+			sandboxId: 'sb-by-id',
+			timeoutSeconds: 120,
+		});
+
+		const result = await new E2b().execute.call(executeFunctions);
+
+		expect(e2bClient.listSandboxes).not.toHaveBeenCalled();
+		expect(e2bClient.getSandboxInfo).toHaveBeenCalledWith(expect.any(Object), 'sb-by-id');
+		expect(result[0]?.[0]?.json).toMatchObject({ sandboxId: 'sb-by-id' });
+	});
+
+	it('gets a sandbox by metadata filter', async () => {
+		e2bClient.listSandboxes.mockResolvedValue([e2bClient.makeSandboxInfo('sb-by-metadata')]);
+		e2bClient.getSandboxInfo.mockResolvedValue(e2bClient.makeSandboxInfo('sb-by-metadata'));
+		const executeFunctions = setupExecuteFunctions({
+			resource: 'sandbox',
+			operation: 'get',
+			getBy: 'metadata',
+			filterMetadataJson: '{"purpose":"n8n-agent-persist"}',
+			timeoutSeconds: 120,
+		});
+
+		const result = await new E2b().execute.call(executeFunctions);
+
+		expect(e2bClient.listSandboxes).toHaveBeenCalledWith(expect.any(Object), {
+			metadata: { purpose: 'n8n-agent-persist' },
+			limit: 1,
+		});
+		expect(e2bClient.getSandboxInfo).toHaveBeenCalledWith(expect.any(Object), 'sb-by-metadata');
+		expect(result[0]?.[0]?.json).toMatchObject({ sandboxId: 'sb-by-metadata' });
+	});
+
+	it('throws when no sandbox matches the metadata filter', async () => {
+		e2bClient.listSandboxes.mockResolvedValue([]);
+		const executeFunctions = setupExecuteFunctions({
+			resource: 'sandbox',
+			operation: 'get',
+			getBy: 'metadata',
+			filterMetadataJson: '{"purpose":"missing"}',
+			timeoutSeconds: 120,
+		});
+
+		await expect(new E2b().execute.call(executeFunctions)).rejects.toThrow(
+			/no sandbox found matching/i,
+		);
+	});
+
+	it('throws when the metadata filter is empty', async () => {
+		const executeFunctions = setupExecuteFunctions({
+			resource: 'sandbox',
+			operation: 'get',
+			getBy: 'metadata',
+			filterMetadataJson: '{}',
+			timeoutSeconds: 120,
+		});
+
+		await expect(new E2b().execute.call(executeFunctions)).rejects.toThrow(
+			/at least one key-value pair/i,
+		);
+		expect(e2bClient.listSandboxes).not.toHaveBeenCalled();
+	});
+
+	it('lists sandboxes with a limit', async () => {
+		e2bClient.listSandboxes.mockResolvedValue([e2bClient.makeSandboxInfo('sb-listed')]);
+		const executeFunctions = setupExecuteFunctions({
+			resource: 'sandbox',
+			operation: 'getMany',
+			limit: 25,
+			timeoutSeconds: 120,
+		});
+
+		const result = await new E2b().execute.call(executeFunctions);
+
+		expect(e2bClient.listSandboxes).toHaveBeenCalledWith(expect.any(Object), { limit: 25 });
+		expect(result[0]?.[0]?.json).toMatchObject({ sandboxId: 'sb-listed' });
+	});
+
 	it('writes text content to a sandbox file', async () => {
 		const sandbox = e2bClient.makeSandbox('sb-files');
 		e2bClient.connectSandbox.mockResolvedValue(sandbox);
