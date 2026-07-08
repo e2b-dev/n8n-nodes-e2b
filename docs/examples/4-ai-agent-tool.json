@@ -4,7 +4,7 @@
     {
       "parameters": {
         "content": "## E2B — AI Agent runs code as a tool\n\nThe agent controls **one E2B sandbox** through four tools: `run_command`, `write_file`, `read_file`, `list_files`. State persists **across tool calls _and_ across chat runs** — the sandbox is tagged with metadata, found again on the next run, and *paused* (not killed) between runs, so files survive. The first message creates it; later messages resume the same one.\n\n### Setup\n1. Add an **E2B API** credential (key at e2b.dev/dashboard) to every E2B node.\n2. Add an **OpenAI** credential to the chat model.\n\n### Reset\nKill the tagged sandbox (or let it expire) to start fresh — a new one is created and tagged automatically.",
-        "height": 460,
+        "height": 524,
         "width": 460,
         "color": "#CE2601"
       },
@@ -13,14 +13,14 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -380,
-        20
+        -384,
+        32
       ]
     },
     {
       "parameters": {
         "content": "### How to run\nClick **Chat** (bottom of the canvas), paste the prompt on the right, and send.\n\nThen send it **again** — the run counter goes up because the sandbox and its files persist between chats.",
-        "height": 200,
+        "height": 232,
         "width": 460,
         "color": 7
       },
@@ -29,14 +29,14 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -380,
-        500
+        -384,
+        592
       ]
     },
     {
       "parameters": {
         "content": "```\nThis sandbox persists across chats. Run this one command, then reply with ONLY its raw output inside a code block (no extra prose):\n\nrun_command:\nmkdir -p /home/user \\\n  && echo \"run $(date -u +%FT%TZ)\" >> /home/user/runs.log \\\n  && printf \"Run #%s\\n\\n\" \"$(wc -l < /home/user/runs.log)\" \\\n  && cat -n /home/user/runs.log\n```",
-        "height": 360,
+        "height": 248,
         "width": 680,
         "color": 7
       },
@@ -45,14 +45,14 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -380,
-        720
+        -384,
+        864
       ]
     },
     {
       "parameters": {
         "content": "### Persistence across chats\n`Find Sandbox` uses **Get → By Metadata** — E2B filters **server-side** for the sandbox tagged `purpose=n8n-agent-persist` (one API call, no client-side scan; paused sandboxes match too). If found it is reused (and resumed from pause). If none matches, the node errors — *On Error: Continue* turns that into an empty item, so `Has sandbox?` routes to `Create Sandbox`, which makes a new tagged one. After the agent runs, `Pause Sandbox` suspends it — the next chat finds and resumes the *same* sandbox, so files persist.",
-        "height": 220,
+        "height": 268,
         "width": 640,
         "color": 7
       },
@@ -61,8 +61,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1180,
-        -40
+        400,
+        -48
       ]
     },
     {
@@ -72,8 +72,8 @@
       "type": "@n8n/n8n-nodes-langchain.chatTrigger",
       "typeVersion": 1.3,
       "position": [
-        400,
-        400
+        384,
+        272
       ],
       "webhookId": "e2b-agent-example-webhook"
     },
@@ -89,8 +89,8 @@
       "type": "@e2b/n8n-nodes-e2b.e2b",
       "typeVersion": 1,
       "position": [
-        700,
-        400
+        688,
+        272
       ],
       "alwaysOutputData": true,
       "onError": "continueRegularOutput",
@@ -131,8 +131,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        1060,
-        400
+        992,
+        272
       ]
     },
     {
@@ -148,8 +148,8 @@
       "type": "@e2b/n8n-nodes-e2b.e2b",
       "typeVersion": 1,
       "position": [
-        1280,
-        200
+        1232,
+        96
       ],
       "credentials": {
         "e2bApi": {
@@ -177,8 +177,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1500,
-        400
+        1488,
+        288
       ]
     },
     {
@@ -194,8 +194,8 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        1720,
-        400
+        1712,
+        288
       ]
     },
     {
@@ -212,8 +212,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
-        1360,
-        640
+        1344,
+        528
       ],
       "credentials": {
         "openAiApi": {
@@ -236,8 +236,8 @@
       "type": "@e2b/n8n-nodes-e2b.e2bTool",
       "typeVersion": 1,
       "position": [
-        1540,
-        640
+        1536,
+        528
       ],
       "credentials": {
         "e2bApi": {
@@ -261,8 +261,8 @@
       "type": "@e2b/n8n-nodes-e2b.e2bTool",
       "typeVersion": 1,
       "position": [
-        1720,
-        640
+        1712,
+        528
       ],
       "credentials": {
         "e2bApi": {
@@ -285,8 +285,8 @@
       "type": "@e2b/n8n-nodes-e2b.e2bTool",
       "typeVersion": 1,
       "position": [
-        1900,
-        640
+        1888,
+        528
       ],
       "credentials": {
         "e2bApi": {
@@ -310,8 +310,8 @@
       "type": "@e2b/n8n-nodes-e2b.e2bTool",
       "typeVersion": 1,
       "position": [
-        2080,
-        640
+        2064,
+        528
       ],
       "credentials": {
         "e2bApi": {
@@ -332,8 +332,8 @@
       "type": "@e2b/n8n-nodes-e2b.e2b",
       "typeVersion": 1,
       "position": [
-        1940,
-        400
+        1936,
+        288
       ],
       "credentials": {
         "e2bApi": {
@@ -344,18 +344,18 @@
     },
     {
       "parameters": {
-        "content": "### Reset — delete the persistent sandbox\nA separate flow to wipe the agent’s memory. It lists your sandboxes, keeps the ones tagged `purpose=n8n-agent-persist`, and **kills** them, so the next chat starts fresh. Not connected to the chat flow — run it manually with the ▶ button.",
+        "content": "### Reset — delete the persistent sandbox\nA separate flow to wipe the agent’s memory. `Find Sandbox (reset)` uses the same **Get → By Metadata** lookup as the chat flow to locate the sandbox tagged `purpose=n8n-agent-persist`, then **kills** it, so the next chat starts fresh. If nothing matches, the node errors with “No sandbox found” — nothing to reset. Not connected to the chat flow — run it manually with the ▶ button.",
         "height": 200,
         "width": 700,
-        "color": 3
+        "color": 7
       },
       "id": "eeee0000-0000-0000-0000-0000000000ee",
       "name": "Reset flow",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        400,
-        780
+        384,
+        704
       ]
     },
     {
@@ -365,43 +365,8 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        400,
-        980
-      ]
-    },
-    {
-      "parameters": {
-        "resource": "sandbox",
-        "operation": "getMany",
-        "limit": 100
-      },
-      "id": "r2220000-0000-0000-0000-0000000000r2",
-      "name": "List Sandboxes",
-      "type": "@e2b/n8n-nodes-e2b.e2b",
-      "typeVersion": 1,
-      "position": [
-        620,
-        980
-      ],
-      "alwaysOutputData": true,
-      "credentials": {
-        "e2bApi": {
-          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
-          "name": "E2B API account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "return $input.all().filter(\n  (i) => i.json && i.json.metadata && i.json.metadata.purpose === 'n8n-agent-persist'\n);"
-      },
-      "id": "r3330000-0000-0000-0000-0000000000r3",
-      "name": "Keep tagged",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        840,
-        980
+        384,
+        944
       ]
     },
     {
@@ -415,8 +380,30 @@
       "type": "@e2b/n8n-nodes-e2b.e2b",
       "typeVersion": 1,
       "position": [
-        1060,
-        980
+        832,
+        944
+      ],
+      "credentials": {
+        "e2bApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "E2B API account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "sandbox",
+        "operation": "get",
+        "getBy": "metadata",
+        "filterMetadataJson": "{ \"purpose\": \"n8n-agent-persist\" }"
+      },
+      "id": "r2220000-0000-0000-0000-0000000000r2",
+      "name": "Find Sandbox (reset)",
+      "type": "@e2b/n8n-nodes-e2b.e2b",
+      "typeVersion": 1,
+      "position": [
+        608,
+        944
       ],
       "credentials": {
         "e2bApi": {
@@ -559,25 +546,14 @@
       "main": [
         [
           {
-            "node": "List Sandboxes",
+            "node": "Find Sandbox (reset)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "List Sandboxes": {
-      "main": [
-        [
-          {
-            "node": "Keep tagged",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Keep tagged": {
+    "Find Sandbox (reset)": {
       "main": [
         [
           {
