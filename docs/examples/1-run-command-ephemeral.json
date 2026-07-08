@@ -1,0 +1,98 @@
+{
+  "name": "E2B · Level 1 — Run a command (ephemeral sandbox)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## E2B — Run one command, throwaway sandbox\n\nThe simplest E2B pattern: leave **Sandbox ID** empty and enable **Kill After Run** — a single node creates a sandbox, runs the command, and destroys it. No lifecycle to manage.\n\n### Setup\n1. Add an **E2B API** credential (key at e2b.dev/dashboard) to the E2B node.",
+        "height": 340,
+        "width": 460,
+        "color": "#CE2601"
+      },
+      "id": "aaaa0000-0000-0000-0000-0000000000a1",
+      "name": "About & setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -380,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### How to run\nClick **Test workflow** — the node output shows the command's `stdout` (a hello from Python inside the sandbox).\n\nNothing to clean up: the sandbox is killed automatically after the run.",
+        "height": 200,
+        "width": 460,
+        "color": 7
+      },
+      "id": "cccc0000-0000-0000-0000-0000000000c1",
+      "name": "How to run",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -380,
+        480
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "11111111-1111-1111-1111-111111111111",
+      "name": "When clicking 'Test workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "code",
+        "operation": "runCommand",
+        "sandboxId": "",
+        "command": "python3 -c \"import platform, sys; print(f'Python {sys.version_info.major}.{sys.version_info.minor} on {platform.system()}'); print('Hello from an E2B sandbox!')\"",
+        "allowInternetAccess": true,
+        "killAfterRun": true
+      },
+      "id": "22222222-2222-2222-2222-222222222222",
+      "name": "Run Command (Ephemeral)",
+      "type": "@e2b/n8n-nodes-e2b.e2b",
+      "typeVersion": 1,
+      "position": [
+        520,
+        320
+      ],
+      "credentials": {
+        "e2bApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "E2B API account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking 'Test workflow'": {
+      "main": [
+        [
+          {
+            "node": "Run Command (Ephemeral)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "e2b-example",
+      "id": "e2b-example"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
