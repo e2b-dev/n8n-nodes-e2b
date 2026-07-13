@@ -189,7 +189,16 @@ function throwApiResponseError(
 		response.body,
 		statusCode ? `${statusCode}: ${fallbackMessage}` : fallbackMessage,
 	);
-	throw new NodeApiError(executeFunctions.getNode(), toJsonObject(response.body, message));
+	const body = toJsonObject(response.body, message);
+	throw new NodeApiError(
+		executeFunctions.getNode(),
+		{
+			...(statusCode !== undefined ? { statusCode } : {}),
+			body,
+			response: { data: body },
+		},
+		{ httpCode: statusCode?.toString() },
+	);
 }
 
 async function apiRequest<T>(
