@@ -1,5 +1,5 @@
 import type { IExecuteFunctions } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { NodeApiError, NodeOperationError } from 'n8n-workflow';
 
 import { E2b } from '../E2b.node';
 
@@ -229,14 +229,34 @@ beforeEach(() => {
 });
 
 describe('E2B node', () => {
-	it('kills a created sandbox when command execution fails unexpectedly', async () => {
+	it('preserves API context when command execution fails', async () => {
 		const sandbox = e2bClient.makeSandbox('sb-cleanup');
 		e2bClient.createSandbox.mockResolvedValue(sandbox);
-		e2bClient.runSandboxCommand.mockRejectedValue(new Error('network reset'));
 		const executeFunctions = setupExecuteFunctions(defaultRunCommandParams());
+		const responseBody = {
+			message: 'Command service unavailable',
+			code: 'service_unavailable',
+		};
+		e2bClient.runSandboxCommand.mockRejectedValue(
+			new NodeApiError(
+				executeFunctions.getNode(),
+				{
+					statusCode: 503,
+					body: responseBody,
+					response: { data: responseBody },
+				},
+				{ httpCode: '503' },
+			),
+		);
 
-		await expect(new E2b().execute.call(executeFunctions)).rejects.toThrow(/network reset/i);
-
+		await expect(new E2b().execute.call(executeFunctions)).rejects.toMatchObject({
+			name: 'NodeApiError',
+			httpCode: '503',
+			context: {
+				data: responseBody,
+				itemIndex: 0,
+			},
+		});
 		expect(e2bClient.killSandbox).toHaveBeenCalledWith(expect.any(Object), 'sb-cleanup');
 	});
 
@@ -552,6 +572,48 @@ describe('E2B node', () => {
 				success: true,
 			}),
 		);
+	});
+
+	it('preserves API error status and response context', async () => {
+		const executeFunctions = setupExecuteFunctions({
+			resource: 'snapshot',
+			operation: 'delete',
+			snapshotId: 'snap-node:default',
+			timeoutSeconds: 120,
+		});
+		const responseBody = {
+			message: 'Sandbox quota exceeded',
+			code: 'quota_exceeded',
+			limit: 20,
+		};
+		e2bClient.deleteSnapshot.mockRejectedValue(
+			new NodeApiError(
+				executeFunctions.getNode(),
+				{
+					statusCode: 429,
+					body: responseBody,
+					response: { data: responseBody },
+				},
+				{
+					httpCode: '429',
+					description: 'You have reached the maximum number of concurrent sandboxes',
+				},
+			),
+		);
+
+		await expect(new E2b().execute.call(executeFunctions)).rejects.toMatchObject({
+			name: 'NodeApiError',
+			httpCode: '429',
+			description: 'Sandbox quota exceeded',
+			errorResponse: expect.objectContaining({
+				statusCode: 429,
+				body: responseBody,
+			}),
+			context: {
+				data: responseBody,
+				itemIndex: 0,
+			},
+		});
 	});
 
 	it('lists E2B volumes with the requested limit', async () => {

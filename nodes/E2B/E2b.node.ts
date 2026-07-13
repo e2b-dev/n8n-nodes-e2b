@@ -4,7 +4,7 @@ import type {
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
-import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
+import { ensureError, NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
 import { getOperationHandler } from './actions';
 import { getErrorMessage, getTimeoutMs } from './helpers';
@@ -1056,7 +1056,12 @@ export class E2b implements INodeType {
 					});
 					continue;
 				}
-				throw new NodeOperationError(this.getNode(), getErrorMessage(error), { itemIndex });
+				const normalizedError = ensureError(error);
+				if (normalizedError instanceof NodeApiError) {
+					normalizedError.context.itemIndex = itemIndex;
+					throw normalizedError;
+				}
+				throw new NodeOperationError(this.getNode(), normalizedError, { itemIndex });
 			}
 		}
 

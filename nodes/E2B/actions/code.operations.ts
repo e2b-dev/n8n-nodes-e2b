@@ -1,5 +1,5 @@
 import type { IDataObject } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { ensureError, NodeApiError, NodeOperationError } from 'n8n-workflow';
 
 import { connectSandbox, createSandbox, killSandbox, runSandboxCommand } from '../client';
 import {
@@ -34,6 +34,8 @@ export async function runCommand(context: E2BOperationContext) {
 	let resultData: IDataObject | undefined;
 	let executionError: unknown;
 	let cleanupError: unknown;
+	let commandFailed = false;
+	let cleanupFailed = false;
 	try {
 		const startedAt = Date.now();
 		const result = await runSandboxCommand(connection, sandbox, command, {
@@ -43,6 +45,7 @@ export async function runCommand(context: E2BOperationContext) {
 
 		resultData = toCommandResultData(result, sandbox, command, startedAt, createdSandbox, false);
 	} catch (error) {
+		commandFailed = true;
 		executionError = error;
 	} finally {
 		if (killAfterRun) {
@@ -50,26 +53,30 @@ export async function runCommand(context: E2BOperationContext) {
 				await killSandbox(connection, sandbox.sandboxId);
 				if (resultData) resultData.killedAfterRun = true;
 			} catch (error) {
+				cleanupFailed = true;
 				cleanupError = error;
 				if (resultData) resultData.cleanupError = getErrorMessage(error);
 			}
 		}
 	}
 
-	if (executionError) {
-		if (cleanupError) {
+	if (commandFailed) {
+		const normalizedExecutionError = ensureError(executionError);
+		if (cleanupFailed) {
+			if (normalizedExecutionError instanceof NodeApiError) {
+				normalizedExecutionError.context.cleanupError = getErrorMessage(cleanupError);
+				throw normalizedExecutionError;
+			}
 			throw new NodeOperationError(
 				executeFunctions.getNode(),
-				`E2B command failed and the sandbox could not be killed: ${getErrorMessage(executionError)}; cleanup error: ${getErrorMessage(cleanupError)}`,
+				`E2B command failed and the sandbox could not be killed: ${getErrorMessage(normalizedExecutionError)}; cleanup error: ${getErrorMessage(cleanupError)}`,
 				{ itemIndex },
 			);
 		}
-		throw new NodeOperationError(executeFunctions.getNode(), getErrorMessage(executionError), {
-			itemIndex,
-		});
+		throw normalizedExecutionError;
 	}
 
-	if (cleanupError) {
+	if (cleanupFailed) {
 		throw new NodeOperationError(
 			executeFunctions.getNode(),
 			`E2B command succeeded but the sandbox could not be killed: ${getErrorMessage(cleanupError)}`,
