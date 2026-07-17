@@ -1,6 +1,6 @@
 {
   "name": "@e2b/n8n-nodes-e2b",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "n8n community node for E2B - create and manage sandboxes and snapshots, and run commands in cloud sandboxes from your workflows.",
   "packageManager": "pnpm@11.7.0",
   "license": "MIT",
