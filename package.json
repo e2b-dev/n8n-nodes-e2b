@@ -33,7 +33,6 @@
     "lint:basic": "eslint . --config eslint.basic.config.mjs",
     "lint:fix": "n8n-node lint --fix",
     "release": "n8n-node release",
-    "release:auto": "GITHUB_TOKEN=${GITHUB_TOKEN:-$(gh auth token)} npx --yes release-it@19 --ci --git.requireBranch=main --git.commit --git.tag --git.push --github.release --npm.publish=false --hooks.before:init=\"pnpm lint && pnpm build\"",
     "prepublishOnly": "n8n-node prerelease",
     "test": "vitest run",
     "test:watch": "vitest",
