@@ -3,3 +3,5 @@ node_modules
 *.log
 *.tgz
 .env
+.DS_Store
+research/
