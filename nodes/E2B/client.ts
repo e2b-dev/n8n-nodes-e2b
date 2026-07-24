@@ -8,9 +8,12 @@ import type {
 } from 'n8n-workflow';
 import { NodeApiError } from 'n8n-workflow';
 
+import * as packageJson from '../../package.json';
+
 const CREDENTIAL_TYPE = 'e2bApi';
 const DEFAULT_DOMAIN = 'e2b.app';
 const DEFAULT_API_URL = `https://api.${DEFAULT_DOMAIN}`;
+const INTEGRATION_USER_AGENT = `n8n-nodes-e2b/${packageJson.version}`;
 const DEFAULT_SANDBOX_TIMEOUT_MS = 300_000;
 const ENVD_PORT = 49983;
 const ENVD_DEFAULT_USER = '0.4.0';
@@ -210,7 +213,10 @@ async function apiRequest<T>(
 	const requestOptions: IHttpRequestOptions = {
 		method,
 		url: `${getApiBaseUrl(connection.credentials)}${endpoint}`,
-		headers: options.headers,
+		headers: {
+			'User-Agent': INTEGRATION_USER_AGENT,
+			...options.headers,
+		},
 		qs: options.qs,
 		body: options.body,
 		encoding: options.encoding,
@@ -454,6 +460,7 @@ function compareVersion(left: string, right: string): number {
 
 function sandboxHeaders(connection: E2BConnection, sandbox: ConnectedSandbox): IDataObject {
 	const headers: IDataObject = {
+		'User-Agent': INTEGRATION_USER_AGENT,
 		'E2b-Sandbox-Id': sandbox.sandboxId,
 		'E2b-Sandbox-Port': ENVD_PORT.toString(),
 	};
